@@ -13,6 +13,7 @@ const CELESTIAL_DATA = {
         emissive: 0xFDB813,
         emissiveIntensity: 1,
         rotationSpeed: 0.004,
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/sun.jpg',
         info: 'The Sun - Our star, containing 99.86% of the solar system\'s mass'
     },
     mercury: {
@@ -21,7 +22,8 @@ const CELESTIAL_DATA = {
         distance: 0.387,  // AU
         color: 0x8C7853,
         rotationSpeed: 0.01,
-        orbitSpeed: 0.04,
+        orbitSpeed: 4.0,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mercury.jpg',
         info: 'Mercury - Smallest planet, closest to the Sun'
     },
     venus: {
@@ -30,7 +32,8 @@ const CELESTIAL_DATA = {
         distance: 0.723,
         color: 0xFFC649,
         rotationSpeed: -0.002,  // Retrograde rotation
-        orbitSpeed: 0.015,
+        orbitSpeed: 1.5,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/venus_surface.jpg',
         info: 'Venus - Hottest planet with thick atmosphere'
     },
     earth: {
@@ -39,7 +42,8 @@ const CELESTIAL_DATA = {
         distance: 1.0,
         color: 0x2233FF,
         rotationSpeed: 0.02,
-        orbitSpeed: 0.01,
+        orbitSpeed: 1.0,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg',
         info: 'Earth - Our home planet, the only known world with life'
     },
     mars: {
@@ -48,7 +52,8 @@ const CELESTIAL_DATA = {
         distance: 1.524,
         color: 0xCD5C5C,
         rotationSpeed: 0.018,
-        orbitSpeed: 0.008,
+        orbitSpeed: 0.8,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mars_1k_color.jpg',
         info: 'Mars - The Red Planet with the largest volcano in the solar system'
     },
     jupiter: {
@@ -57,7 +62,8 @@ const CELESTIAL_DATA = {
         distance: 5.203,
         color: 0xDAA520,
         rotationSpeed: 0.04,
-        orbitSpeed: 0.002,
+        orbitSpeed: 0.2,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/jupiter.jpg',
         info: 'Jupiter - Largest planet, a gas giant with the Great Red Spot'
     },
     saturn: {
@@ -66,7 +72,8 @@ const CELESTIAL_DATA = {
         distance: 9.537,
         color: 0xFAD5A5,
         rotationSpeed: 0.038,
-        orbitSpeed: 0.0009,
+        orbitSpeed: 0.09,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/saturn.jpg',
         info: 'Saturn - Famous for its spectacular ring system'
     },
     uranus: {
@@ -75,7 +82,8 @@ const CELESTIAL_DATA = {
         distance: 19.191,
         color: 0x4FD0E7,
         rotationSpeed: 0.03,
-        orbitSpeed: 0.0004,
+        orbitSpeed: 0.04,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/uranus.jpg',
         info: 'Uranus - Ice giant that rotates on its side'
     },
     neptune: {
@@ -84,7 +92,8 @@ const CELESTIAL_DATA = {
         distance: 30.069,
         color: 0x4169E1,
         rotationSpeed: 0.032,
-        orbitSpeed: 0.0001,
+        orbitSpeed: 0.01,  // Increased for visible motion
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/neptune.jpg',
         info: 'Neptune - Farthest planet with the strongest winds in the solar system'
     }
 };
@@ -101,6 +110,12 @@ class SolarSystemViewer {
         this.scaleFactor = 1;
         this.showOrbits = true;
         this.showLabels = true;
+        this.textureLoader = new THREE.TextureLoader();
+
+        // Camera animation properties
+        this.cameraTarget = null;
+        this.cameraTargetPosition = null;
+        this.cameraAnimating = false;
 
         // Scale factors for visualization
         // We need to scale down distances and scale up planet sizes to make them visible
@@ -161,7 +176,7 @@ class SolarSystemViewer {
             // Create sphere geometry
             const geometry = new THREE.SphereGeometry(radius, 64, 64);
 
-            // Create material
+            // Create material with texture
             const material = new THREE.MeshStandardMaterial({
                 color: data.color,
                 emissive: data.emissive || 0x000000,
@@ -169,6 +184,25 @@ class SolarSystemViewer {
                 roughness: 0.7,
                 metalness: 0.3
             });
+
+            // Load texture if available
+            if (data.textureUrl) {
+                this.textureLoader.load(
+                    data.textureUrl,
+                    (texture) => {
+                        material.map = texture;
+                        material.needsUpdate = true;
+                        // For the sun, also apply to emissive map
+                        if (key === 'sun') {
+                            material.emissiveMap = texture;
+                        }
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load texture for ${key}:`, error);
+                    }
+                );
+            }
 
             const planet = new THREE.Mesh(geometry, material);
 
@@ -326,15 +360,29 @@ class SolarSystemViewer {
 
         const data = CELESTIAL_DATA[this.currentLocation];
         const radius = data.radius * this.sizeScale;
-        const offset = radius * 5; // Position camera at 5x planet radius
 
-        // Smoothly move camera to new position
+        // Calculate appropriate viewing distance based on planet size
+        // Larger offset for gas giants, smaller for terrestrial planets
+        let viewingDistance = radius * 10; // Base distance
+
+        // Minimum viewing distance to ensure we can see the planet
+        viewingDistance = Math.max(viewingDistance, 30);
+
+        // For very large planets like Jupiter and Saturn, increase distance
+        if (radius > 50) {
+            viewingDistance = radius * 15;
+        }
+
+        // Set target position for smooth animation
         const targetPosition = body.position.clone();
-        targetPosition.y += offset;
-        targetPosition.z += offset * 2;
+        targetPosition.x += viewingDistance * 0.7;
+        targetPosition.y += viewingDistance * 0.5;
+        targetPosition.z += viewingDistance * 0.7;
 
-        this.camera.position.lerp(targetPosition, 0.1);
-        this.controls.target.copy(body.position);
+        // Enable camera animation
+        this.cameraTargetPosition = targetPosition;
+        this.cameraTarget = body.position.clone();
+        this.cameraAnimating = true;
 
         // Update info panel
         this.updateInfoPanel(data);
@@ -396,6 +444,21 @@ class SolarSystemViewer {
                 data.light.position.copy(body.position);
             }
         });
+
+        // Smooth camera animation
+        if (this.cameraAnimating && this.cameraTargetPosition && this.cameraTarget) {
+            // Smoothly move camera to target position
+            this.camera.position.lerp(this.cameraTargetPosition, 0.05);
+
+            // Smoothly move controls target to planet
+            this.controls.target.lerp(this.cameraTarget, 0.05);
+
+            // Check if we're close enough to stop animating
+            const distanceToTarget = this.camera.position.distanceTo(this.cameraTargetPosition);
+            if (distanceToTarget < 0.1) {
+                this.cameraAnimating = false;
+            }
+        }
 
         // Update label positions
         this.updateLabelPositions();
