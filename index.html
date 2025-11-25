@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Sky Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="info-panel">
+        <h1>Solar System Sky Viewer</h1>
+        <div class="control-group">
+            <label for="location-select">View from:</label>
+            <select id="location-select">
+                <option value="sun">Sun</option>
+                <option value="mercury">Mercury</option>
+                <option value="venus">Venus</option>
+                <option value="earth" selected>Earth</option>
+                <option value="mars">Mars</option>
+                <option value="jupiter">Jupiter</option>
+                <option value="saturn">Saturn</option>
+                <option value="uranus">Uranus</option>
+                <option value="neptune">Neptune</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="scale-factor">Distance Scale:</label>
+            <input type="range" id="scale-factor" min="0.1" max="2" step="0.1" value="1">
+            <span id="scale-value">1x</span>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="show-orbits" checked>
+                Show Orbits
+            </label>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="show-labels" checked>
+                Show Labels
+            </label>
+        </div>
+
+        <div id="planet-info">
+            <h3>Location Info</h3>
+            <div id="planet-details"></div>
+        </div>
+
+        <div class="instructions">
+            <h3>Controls</h3>
+            <p>🖱️ Left click + drag: Rotate view</p>
+            <p>🖱️ Right click + drag: Pan view</p>
+            <p>⚙️ Scroll: Zoom in/out</p>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

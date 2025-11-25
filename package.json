@@ -1,0 +1,22 @@
+{
+  "name": "solar-system-sky-viewer",
+  "version": "1.0.0",
+  "description": "Interactive solar system sky viewer with realistic relative distances and planet sizes",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "solar-system",
+    "three.js",
+    "astronomy",
+    "3d",
+    "planets"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.159.0"
+  }
+}
