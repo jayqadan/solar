@@ -116,8 +116,8 @@ class SolarSystemViewer {
 
     init() {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadow;
+        // Shadows disabled - not physically accurate at solar system scale
+        this.renderer.shadowMap.enabled = false;
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);
 
         // Add ambient light
