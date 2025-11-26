@@ -13,7 +13,9 @@ const CELESTIAL_DATA = {
         emissive: 0xFDB813,
         emissiveIntensity: 1,
         rotationSpeed: 0.004,
-        info: 'The Sun - Our star, containing 99.86% of the solar system\'s mass'
+        info: 'The Sun - Our star, containing 99.86% of the solar system\'s mass',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/sun.jpg',
+        sizeScaleOverride: 0.0001  // Much smaller visual scale for the sun
     },
     mercury: {
         name: 'Mercury',
@@ -22,7 +24,8 @@ const CELESTIAL_DATA = {
         color: 0x8C7853,
         rotationSpeed: 0.01,
         orbitSpeed: 0.04,
-        info: 'Mercury - Smallest planet, closest to the Sun'
+        info: 'Mercury - Smallest planet, closest to the Sun',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mercury.jpg'
     },
     venus: {
         name: 'Venus',
@@ -31,7 +34,8 @@ const CELESTIAL_DATA = {
         color: 0xFFC649,
         rotationSpeed: -0.002,  // Retrograde rotation
         orbitSpeed: 0.015,
-        info: 'Venus - Hottest planet with thick atmosphere'
+        info: 'Venus - Hottest planet with thick atmosphere',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/venus_surface.jpg'
     },
     earth: {
         name: 'Earth',
@@ -40,7 +44,8 @@ const CELESTIAL_DATA = {
         color: 0x2233FF,
         rotationSpeed: 0.02,
         orbitSpeed: 0.01,
-        info: 'Earth - Our home planet, the only known world with life'
+        info: 'Earth - Our home planet, the only known world with life',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg'
     },
     mars: {
         name: 'Mars',
@@ -49,7 +54,8 @@ const CELESTIAL_DATA = {
         color: 0xCD5C5C,
         rotationSpeed: 0.018,
         orbitSpeed: 0.008,
-        info: 'Mars - The Red Planet with the largest volcano in the solar system'
+        info: 'Mars - The Red Planet with the largest volcano in the solar system',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mars_1k_color.jpg'
     },
     jupiter: {
         name: 'Jupiter',
@@ -58,7 +64,8 @@ const CELESTIAL_DATA = {
         color: 0xDAA520,
         rotationSpeed: 0.04,
         orbitSpeed: 0.002,
-        info: 'Jupiter - Largest planet, a gas giant with the Great Red Spot'
+        info: 'Jupiter - Largest planet, a gas giant with the Great Red Spot',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/jupiter.jpg'
     },
     saturn: {
         name: 'Saturn',
@@ -67,7 +74,8 @@ const CELESTIAL_DATA = {
         color: 0xFAD5A5,
         rotationSpeed: 0.038,
         orbitSpeed: 0.0009,
-        info: 'Saturn - Famous for its spectacular ring system'
+        info: 'Saturn - Famous for its spectacular ring system',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/saturn.jpg'
     },
     uranus: {
         name: 'Uranus',
@@ -76,7 +84,8 @@ const CELESTIAL_DATA = {
         color: 0x4FD0E7,
         rotationSpeed: 0.03,
         orbitSpeed: 0.0004,
-        info: 'Uranus - Ice giant that rotates on its side'
+        info: 'Uranus - Ice giant that rotates on its side',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/uranus.jpg'
     },
     neptune: {
         name: 'Neptune',
@@ -85,7 +94,8 @@ const CELESTIAL_DATA = {
         color: 0x4169E1,
         rotationSpeed: 0.032,
         orbitSpeed: 0.0001,
-        info: 'Neptune - Farthest planet with the strongest winds in the solar system'
+        info: 'Neptune - Farthest planet with the strongest winds in the solar system',
+        textureUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/neptune.jpg'
     }
 };
 
@@ -106,6 +116,9 @@ class SolarSystemViewer {
         // We need to scale down distances and scale up planet sizes to make them visible
         this.distanceScale = 100;  // 1 AU = 100 units in scene
         this.sizeScale = 0.001;    // Scale for planet sizes (smaller planets would be invisible at true scale)
+
+        // Texture loader
+        this.textureLoader = new THREE.TextureLoader();
 
         this.init();
         this.createCelestialBodies();
@@ -155,21 +168,44 @@ class SolarSystemViewer {
 
     createCelestialBodies() {
         Object.entries(CELESTIAL_DATA).forEach(([key, data]) => {
-            // Calculate scaled radius
-            const radius = data.radius * this.sizeScale;
+            // Calculate scaled radius with override for sun
+            const sizeScale = data.sizeScaleOverride || this.sizeScale;
+            const radius = data.radius * sizeScale;
 
             // Create sphere geometry
             const geometry = new THREE.SphereGeometry(radius, 64, 64);
 
-            // Create material
-            const material = new THREE.MeshStandardMaterial({
-                color: data.color,
+            // Create material with texture
+            const materialOptions = {
                 emissive: data.emissive || 0x000000,
                 emissiveIntensity: data.emissiveIntensity || 0,
                 roughness: 0.7,
                 metalness: 0.3
-            });
+            };
 
+            // Load texture if available
+            if (data.textureUrl) {
+                this.textureLoader.load(
+                    data.textureUrl,
+                    (texture) => {
+                        // Texture loaded successfully
+                        const planet = this.celestialBodies[key];
+                        if (planet) {
+                            planet.material.map = texture;
+                            planet.material.needsUpdate = true;
+                        }
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load texture for ${key}:`, error);
+                    }
+                );
+            }
+
+            // Use color as fallback
+            materialOptions.color = data.color;
+
+            const material = new THREE.MeshStandardMaterial(materialOptions);
             const planet = new THREE.Mesh(geometry, material);
 
             // Position planet
