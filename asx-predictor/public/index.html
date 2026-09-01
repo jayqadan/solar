@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASX Gain Predictor — Demo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📈</span>
+      <div>
+        <h1>ASX Gain Predictor</h1>
+        <p class="tagline">Australian stock signals &amp; demo brokerage</p>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="market">Market</button>
+      <button class="tab" data-tab="portfolio">Portfolio</button>
+    </nav>
+    <div class="mode-pill" id="modePill">…</div>
+  </header>
+
+  <div class="disclaimer">
+    ⚠️ <strong>Demo only — not financial advice.</strong> The "potential gain" figures are indicative
+    technical signals, not forecasts; markets can and do move against every signal. This app is not a
+    licensed broker (no AFSL) and does not buy real shares — payments run in Stripe <em>test mode</em>
+    or are simulated. Never enter real card details.
+  </div>
+
+  <main>
+    <section id="tab-market" class="tab-panel active">
+      <div class="section-head">
+        <h2>ASX 20 — ranked by indicative 30-day potential gain</h2>
+        <span class="as-of" id="asOf"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="marketTable">
+          <thead>
+            <tr>
+              <th>Stock</th>
+              <th>Price (A$)</th>
+              <th>Trend (250d)</th>
+              <th>Signal</th>
+              <th>Score</th>
+              <th>Potential gain (30d)</th>
+              <th>Range</th>
+              <th>Confidence</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="loading" id="marketLoading">Loading market data…</div>
+    </section>
+
+    <section id="tab-portfolio" class="tab-panel">
+      <div class="section-head"><h2>Your holdings</h2></div>
+      <div class="table-wrap">
+        <table id="holdingsTable">
+          <thead>
+            <tr>
+              <th>Stock</th><th>Units</th><th>Avg price</th><th>Current</th>
+              <th>Value (A$)</th><th>Gain/Loss</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="empty" id="holdingsEmpty" hidden>No holdings yet — buy something from the Market tab.</p>
+
+      <div class="section-head"><h2>Order history</h2></div>
+      <div class="table-wrap">
+        <table id="ordersTable">
+          <thead>
+            <tr><th>Date</th><th>Stock</th><th>Units</th><th>Unit price</th><th>Fee</th><th>Total</th><th>Status</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="empty" id="ordersEmpty" hidden>No orders yet.</p>
+    </section>
+  </main>
+
+  <!-- Stock detail + buy modal -->
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <footer>
+    <p>
+      Educational demo. Indicators: SMA 20/50 crossover, 20/60-day momentum, RSI-14, realised volatility.
+      Data is simulated unless <code>LIVE_DATA=1</code>. Providing financial product advice or dealing in
+      securities in Australia requires an Australian Financial Services Licence — this demo does neither.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
