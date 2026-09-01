@@ -73,6 +73,8 @@ export function createUser({ email, password }) {
     pro: false,
     stripeCustomerId: null,
     savedAnalysis: null,
+    basiqUserId: null,
+    monitoring: { enabled: false, lastScanAt: null, lastReminderAt: null },
     createdAt: new Date().toISOString()
   };
   db.users[user.id] = user;
@@ -89,7 +91,17 @@ export function updateUser(id, patch) {
   return user;
 }
 
+export function findAll() {
+  return Object.values(load().users);
+}
+
 export function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, email: user.email, pro: user.pro, hasSavedAnalysis: Boolean(user.savedAnalysis) };
+  return {
+    id: user.id,
+    email: user.email,
+    pro: user.pro,
+    hasSavedAnalysis: Boolean(user.savedAnalysis),
+    monitoring: user.monitoring || { enabled: false, lastScanAt: null, lastReminderAt: null }
+  };
 }

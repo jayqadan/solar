@@ -39,6 +39,24 @@ export function clearSessionCookie() {
   return 'auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
 }
 
+// General-purpose signed tokens (e.g. unsubscribe links)
+export function signToken(payload) {
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `${body}.${sign(body)}`;
+}
+
+export function verifyToken(token) {
+  const [body, sig] = String(token || '').split('.');
+  if (!body || !sig) return null;
+  const expected = sign(body);
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    return JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
 export function readSession(req) {
   const match = (req.headers.cookie || '').match(/auth=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
   if (!match) return null;

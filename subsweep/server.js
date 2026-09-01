@@ -8,7 +8,9 @@ import { detectSubscriptions, refundEmail } from './lib/detect.js';
 import { sampleTransactions } from './lib/sample.js';
 import * as basiq from './lib/basiq.js';
 import * as users from './lib/users.js';
-import { createSessionCookie, clearSessionCookie, readSession } from './lib/sessions.js';
+import { createSessionCookie, clearSessionCookie, readSession, verifyToken } from './lib/sessions.js';
+import { diffAnalyses, runMonitoringTick, CYCLE_DAYS } from './lib/monitor.js';
+import { emailBackend } from './lib/email.js';
 import {
   stripeEnabled, refuseLiveKey, ensureCustomer,
   createSubscriptionCheckout, createPortalSession, verifyWebhookSignature
@@ -175,12 +177,49 @@ app.get('/api/analysis', (req, res) => {
   const analysis = buildAnalysis(ctx);
   if (!analysis) {
     // Logged-in users get their last saved (derived) analysis back
-    if (ctx.user?.savedAnalysis) return res.json({ ...ctx.user.savedAnalysis, restored: true });
+    if (ctx.user?.savedAnalysis) {
+      const saved = ctx.user.savedAnalysis;
+      const scanAgeDays = saved.savedAt ? Math.floor((Date.now() - new Date(saved.savedAt).getTime()) / 86400000) : null;
+      return res.json({ ...saved, restored: true, scanAgeDays, rescanDue: scanAgeDays !== null && scanAgeDays >= CYCLE_DAYS });
+    }
     return res.json({ empty: true });
   }
-  // Persist the derived analysis (never raw transactions) for account holders
-  if (ctx.user) users.updateUser(ctx.user.id, { savedAnalysis: analysis });
+  // Persist the derived analysis (never raw transactions) for account
+  // holders, diffing against the previous scan for "since last scan".
+  analysis.savedAt = new Date().toISOString();
+  if (ctx.user) {
+    const changes = diffAnalyses(ctx.user.savedAnalysis, analysis);
+    if (changes) analysis.changes = changes;
+    users.updateUser(ctx.user.id, {
+      savedAnalysis: analysis,
+      monitoring: { ...ctx.user.monitoring, lastScanAt: analysis.savedAt }
+    });
+  }
   res.json(analysis);
+});
+
+// ---- Monitoring ----
+app.get('/api/monitoring', (req, res) => {
+  const ctx = getContext(req, res);
+  if (!ctx.user) return res.status(401).json({ error: 'Log in to manage monitoring' });
+  res.json({ monitoring: ctx.user.monitoring, cycleDays: CYCLE_DAYS, emailBackend: emailBackend() });
+});
+
+app.post('/api/monitoring', (req, res) => {
+  const ctx = getContext(req, res);
+  if (!ctx.user) return res.status(401).json({ error: 'Create an account to enable monthly monitoring' });
+  const enabled = Boolean(req.body?.enabled);
+  const monitoring = { ...ctx.user.monitoring, enabled };
+  users.updateUser(ctx.user.id, { monitoring });
+  res.json({ monitoring, cycleDays: CYCLE_DAYS });
+});
+
+app.get('/api/monitoring/unsubscribe', (req, res) => {
+  const data = verifyToken(req.query.token);
+  const user = data?.unsub ? users.findById(data.unsub) : null;
+  if (!user) return res.status(400).send('Invalid or expired unsubscribe link.');
+  users.updateUser(user.id, { monitoring: { ...user.monitoring, enabled: false } });
+  res.send('Monthly reminders are off. You can re-enable monitoring any time in the app.');
 });
 
 // ---- Bank connect (Basiq, sandbox-ready) ----
@@ -191,9 +230,15 @@ app.post('/api/bank/connect', async (req, res) => {
   }
   try {
     if (!ctx.ws.basiqUserId) {
-      const email = ctx.user?.email || `subsweep+${ctx.key.slice(0, 8)}@example.com`;
-      const bUser = await basiq.createUser(email);
-      ctx.ws.basiqUserId = bUser.id;
+      if (ctx.user?.basiqUserId) {
+        ctx.ws.basiqUserId = ctx.user.basiqUserId;
+      } else {
+        const email = ctx.user?.email || `subsweep+${ctx.key.slice(0, 8)}@example.com`;
+        const bUser = await basiq.createUser(email);
+        ctx.ws.basiqUserId = bUser.id;
+        // Persist for account holders so monitoring can auto-sync monthly
+        if (ctx.user) users.updateUser(ctx.user.id, { basiqUserId: bUser.id });
+      }
     }
     const token = await basiq.clientToken(ctx.ws.basiqUserId);
     res.json({ consentUrl: `https://consent.basiq.io/home?token=${encodeURIComponent(token)}` });
@@ -254,8 +299,19 @@ app.post('/api/billing/portal', async (req, res) => {
   }
 });
 
+// Hourly monitoring tick (each user acts at most once per 30-day cycle)
+const TICK_MS = 60 * 60 * 1000;
+if (process.env.DISABLE_MONITORING_TICK !== '1') {
+  setInterval(() => {
+    runMonitoringTick().then((r) => {
+      if (r.length) console.log('[monitoring]', JSON.stringify(r));
+    }).catch((err) => console.error('[monitoring] tick failed:', err.message));
+  }, TICK_MS).unref();
+}
+
 app.listen(PORT, () => {
   console.log(`SubSweep running at http://localhost:${PORT}`);
   console.log(`Bank connect: ${basiq.basiqEnabled() ? 'Basiq configured' : 'not configured (statement upload only)'}`);
   console.log(`Billing: ${stripeEnabled() ? 'Stripe TEST subscriptions + webhooks' : 'demo (simulated upgrade)'}`);
+  console.log(`Monitoring: hourly tick, ${CYCLE_DAYS}-day cycle, email via ${emailBackend()}`);
 });

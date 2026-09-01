@@ -44,6 +44,26 @@ are never persisted for anyone. User records live in a file-backed store
 
 The site splits into a marketing landing page at `/` and the app at `/app`.
 
+## Monitoring (monthly re-scan cycle)
+
+Account holders can toggle **monthly monitoring**. An hourly server tick
+(`lib/monitor.js`) finds users whose last scan is older than 30 days:
+
+- with a live Basiq connection, it **re-syncs automatically**, diffs against
+  the previous scan, and emails a change summary (new subscriptions, price
+  changes, disappeared charges, monthly delta);
+- otherwise it emails a **re-scan reminder** with a signed one-click
+  unsubscribe link (`/api/monitoring/unsubscribe?token=...`).
+
+Every fresh scan also computes the same diff and shows a **"since your last
+scan"** panel in the app; restored results older than 30 days get a re-scan
+banner. Reminders repeat at most once per cycle (`lastReminderAt`).
+
+Email goes through **Resend** when `RESEND_API_KEY` is set (`EMAIL_FROM`
+configures the sender); without it, messages land in `data/outbox.json` and
+the server log, so the whole cycle is testable offline.
+`DISABLE_MONITORING_TICK=1` turns the scheduler off (useful in tests).
+
 Remaining for production: a real database, rate limiting, email verification
 + password reset, HTTPS/`Secure` cookies behind a proxy, and GST via Stripe
 Tax once revenue approaches the A$75k registration threshold.

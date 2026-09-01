@@ -87,6 +87,35 @@ async function loadAnalysis() {
     <div class="stat"><span class="lbl">Refund window</span><div class="val">${s.refundWindowCount} charge${s.refundWindowCount === 1 ? '' : 's'}</div></div>
     <div class="stat"><span class="lbl">Price hikes</span><div class="val">${s.priceHikeCount}</div></div>`;
 
+  // Re-scan banner for stale restored results
+  const banner = $('#rescanBanner');
+  if (data.restored && data.rescanDue) {
+    banner.hidden = false;
+    banner.innerHTML = `⏰ These results are ${data.scanAgeDays} days old — new charges and price
+      hikes may have crept in. <button class="btn" id="bannerRescan" style="padding:6px 14px;font-size:13px">Re-scan now</button>`;
+    banner.querySelector('#bannerRescan').addEventListener('click', () => {
+      $('#results').hidden = true;
+      $('#onboarding').hidden = false;
+    });
+  } else banner.hidden = true;
+
+  // "Since your last scan" diff
+  const panel = $('#changesPanel');
+  if (data.changes) {
+    const c = data.changes;
+    const items = [
+      ...c.added.map((a) => `<li class="add">＋ New subscription: <strong>${a.name}</strong> (${aud(a.monthlyCost)}/mo)</li>`),
+      ...c.priceChanges.map((p) => `<li class="chg">↕ <strong>${p.name}</strong>: ${aud(p.from)} → ${aud(p.to)} (${p.deltaPct > 0 ? '+' : ''}${p.deltaPct}%)</li>`),
+      ...c.removed.map((r) => `<li class="gone">－ Gone: <strong>${r.name}</strong> (was ${aud(r.monthlyCost)}/mo)</li>`)
+    ];
+    panel.hidden = false;
+    panel.innerHTML = `<h3>Since your last scan${c.since ? ` (${new Date(c.since).toLocaleDateString('en-AU')})` : ''} —
+      monthly total ${c.monthlyDelta > 0 ? 'up' : 'down'} <strong>${aud(Math.abs(c.monthlyDelta))}</strong></h3>
+      <ul>${items.join('')}</ul>`;
+  } else panel.hidden = true;
+
+  renderMonitorBar();
+
   const list = $('#subList');
   list.innerHTML = '';
   for (const sub of data.subscriptions) list.appendChild(renderSub(sub));
@@ -152,6 +181,39 @@ function renderSub(sub) {
   const lockedBtn = el.querySelector('[data-locked]');
   if (lockedBtn) lockedBtn.addEventListener('click', upgrade);
   return el;
+}
+
+// ---------- monitoring ----------
+async function renderMonitorBar() {
+  const bar = $('#monitorBar');
+  if (!config.loggedIn) {
+    bar.hidden = false;
+    bar.innerHTML = `🔔 Want a monthly reminder to re-check (and automatic re-scans if your bank is connected)?
+      <button class="linklike" id="monitorSignup">Create an account to enable monitoring</button>`;
+    bar.querySelector('#monitorSignup').addEventListener('click', () => openAuth('signup'));
+    return;
+  }
+  try {
+    const out = await api('/api/monitoring');
+    bar.hidden = false;
+    bar.innerHTML = `
+      <label><input type="checkbox" id="monitorToggle" ${out.monitoring.enabled ? 'checked' : ''}/>
+        Monthly monitoring</label>
+      <span>${out.monitoring.enabled
+        ? `On — every ${out.cycleDays} days we'll ${config.bankConnect === 'available' ? 'auto-check your connected bank and email you what changed' : 'email you a re-scan reminder'}.`
+        : `Off — turn on to get a ${out.cycleDays}-day check-in so new charges don't slip past you.`}</span>`;
+    bar.querySelector('#monitorToggle').addEventListener('change', async (e) => {
+      await api('/api/monitoring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: e.target.checked })
+      });
+      toast(e.target.checked ? '🔔 Monthly monitoring is on.' : 'Monitoring turned off.');
+      renderMonitorBar();
+    });
+  } catch {
+    bar.hidden = true;
+  }
 }
 
 // ---------- billing ----------
