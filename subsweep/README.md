@@ -83,6 +83,22 @@ Remaining for production: broader rate limiting, HTTPS/`Secure` cookies
 behind a proxy, and GST via Stripe Tax once revenue approaches the A$75k
 registration threshold.
 
+## Deploying on Railway
+
+1. New Project → Deploy from GitHub repo → pick this repo.
+2. Service **Settings → Root Directory** → `subsweep` (the app lives in a
+   subfolder; `railway.json` handles the rest).
+3. Add a **Volume** mounted at `/data`, and set the variable
+   `DATA_DIR=/data` so the SQLite database survives deploys.
+4. Set variables: `SESSION_SECRET` (long random string), `BASE_URL`
+   (your Railway URL or custom domain), then the service keys as you get
+   them: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`,
+   `RESEND_API_KEY`, `EMAIL_FROM`, `BASIQ_API_KEY`.
+5. Settings → Networking → Generate Domain (or attach your own).
+
+The Free plan runs this fine for testing; move to Hobby before sending
+paid traffic.
+
 ## Run
 
 ```bash
