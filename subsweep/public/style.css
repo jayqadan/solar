@@ -115,6 +115,28 @@ main { flex: 1; width: 100%; max-width: 860px; margin: 0 auto; padding: 24px 18p
 .upsell h3 { margin: 0 0 6px; }
 .upsell p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
 
+.btnpill { cursor: pointer; font-family: inherit; }
+.btnpill:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Auth modal */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(20, 26, 43, 0.55);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 60;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  max-width: 380px; width: 100%; padding: 24px; position: relative;
+}
+.modal h3 { margin: 0 0 6px; }
+.modal-close { position: absolute; top: 10px; right: 12px; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; }
+.modal form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.modal label { font-size: 13px; color: var(--muted); }
+.modal input {
+  width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 15px;
+}
+
 .toast {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
   background: var(--text); color: white; padding: 12px 20px; border-radius: 10px;

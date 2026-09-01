@@ -28,11 +28,25 @@ list and refund emails.
 - No Stripe key → demo mode: upgrade is simulated, no card form anywhere.
 - `STRIPE_SECRET_KEY` (**test keys only** — `sk_live_` is refused at startup)
   + `STRIPE_PRICE_ID` (a recurring Price) → real Stripe Checkout subscription
-  flow in test mode, confirmed server-side on return.
+  flow in test mode. Subscription state is driven by **webhooks**
+  (`POST /api/stripe/webhook`, verified against `STRIPE_WEBHOOK_SECRET`:
+  `checkout.session.completed`, `invoice.paid`,
+  `customer.subscription.updated/deleted`), and Pro users can manage billing
+  through the **Stripe Customer Portal** (`POST /api/billing/portal`).
 
-For production you'd add: real accounts + auth, Stripe webhooks
-(`invoice.paid` / `customer.subscription.deleted`) instead of the
-redirect-confirm shortcut, the Stripe Customer Portal, and GST via Stripe Tax.
+## Accounts
+
+Email + password auth (scrypt hashes, HMAC-signed session cookies, 30-day
+expiry). Anonymous visitors can do everything except keep results; account
+holders get their **derived** analysis saved and restored — raw transactions
+are never persisted for anyone. User records live in a file-backed store
+(`lib/users.js`) whose interface is designed to swap for Postgres.
+
+The site splits into a marketing landing page at `/` and the app at `/app`.
+
+Remaining for production: a real database, rate limiting, email verification
++ password reset, HTTPS/`Secure` cookies behind a proxy, and GST via Stripe
+Tax once revenue approaches the A$75k registration threshold.
 
 ## Run
 

@@ -163,10 +163,19 @@ async function upgrade() {
       return;
     }
     config.pro = true;
-    $('#planPill').textContent = '⭐ Pro (demo)';
-    $('#planPill').classList.add('good');
+    renderPills();
     toast('Pro unlocked (simulated — no payment taken)');
     loadAnalysis();
+  } catch (err) {
+    if (/account first/i.test(err.message)) openAuth('signup');
+    toast(err.message, 'err');
+  }
+}
+
+async function openPortal() {
+  try {
+    const out = await api('/api/billing/portal', { method: 'POST' });
+    window.location.href = out.portalUrl;
   } catch (err) {
     toast(err.message, 'err');
   }
@@ -175,15 +184,61 @@ async function upgrade() {
 async function handleStripeReturn() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('cancelled')) toast('Checkout cancelled — you are still on the free plan.', 'err');
-  else if (params.get('checkout_session')) {
-    try {
-      const out = await api(`/api/billing/confirm?checkout_session=${encodeURIComponent(params.get('checkout_session'))}`);
-      if (out.pro) toast('✅ SubSweep Pro active (test subscription)');
-    } catch (err) {
-      toast(err.message, 'err');
-    }
+  else if (params.get('upgraded')) {
+    // Webhooks flip the account to Pro; refresh config to pick it up.
+    toast('✅ Payment received — your Pro subscription activates as soon as Stripe confirms it.');
   }
   if ([...params.keys()].length) window.history.replaceState({}, '', window.location.pathname);
+}
+
+// ---------- auth ----------
+let authMode = 'signup';
+function openAuth(mode) {
+  authMode = mode;
+  $('#authTitle').textContent = mode === 'signup' ? 'Create your account' : 'Log in';
+  $('#authSubmit').textContent = mode === 'signup' ? 'Sign up' : 'Log in';
+  $('#authToggle').textContent = mode === 'signup' ? 'Already have an account? Log in' : "New here? Create an account";
+  $('#authModal').hidden = false;
+}
+$('#authClose').addEventListener('click', () => ($('#authModal').hidden = true));
+$('#authModal').addEventListener('click', (e) => { if (e.target === $('#authModal')) $('#authModal').hidden = true; });
+$('#authToggle').addEventListener('click', () => openAuth(authMode === 'signup' ? 'login' : 'signup'));
+$('#authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const out = await api(`/api/auth/${authMode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $('#authEmail').value, password: $('#authPassword').value })
+    });
+    $('#authModal').hidden = true;
+    config.loggedIn = true;
+    config.email = out.user.email;
+    config.pro = out.user.pro;
+    renderPills();
+    toast(authMode === 'signup' ? 'Account created — your results now save automatically.' : `Welcome back, ${out.user.email}`);
+    loadAnalysis();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+});
+$('#accountBtn').addEventListener('click', async () => {
+  if (!config.loggedIn) return openAuth('signup');
+  if (confirm(`Logged in as ${config.email}. Log out?`)) {
+    await api('/api/auth/logout', { method: 'POST' });
+    location.reload();
+  }
+});
+
+function renderPills() {
+  $('#planPill').textContent = config.pro ? '⭐ Pro' : `Free plan (top ${config.freeTierLimit} shown)`;
+  $('#planPill').classList.toggle('good', Boolean(config.pro));
+  $('#accountBtn').textContent = config.loggedIn ? `👤 ${config.email}` : '👤 Sign up / Log in';
+  if (config.pro && config.billing === 'stripe-test' && config.loggedIn) {
+    $('#planPill').style.cursor = 'pointer';
+    $('#planPill').title = 'Manage billing';
+    $('#planPill').onclick = openPortal;
+  }
 }
 
 // ---------- init ----------
@@ -195,8 +250,11 @@ async function handleStripeReturn() {
     $('#bankConnectBtn').disabled = true;
     $('#bankHint').textContent = 'Set BASIQ_API_KEY to enable (free sandbox key from basiq.io works).';
   }
-  $('#planPill').textContent = config.pro ? '⭐ Pro' : `Free plan (top ${config.freeTierLimit} shown)`;
-  if (config.pro) $('#planPill').classList.add('good');
+  renderPills();
   await handleStripeReturn();
+  if (sessionStorage.getItem('demo')) {
+    sessionStorage.removeItem('demo');
+    await api('/api/sample', { method: 'POST' });
+  }
   loadAnalysis();
 })();
