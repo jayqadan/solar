@@ -245,6 +245,11 @@ async function openPortal() {
 
 async function handleStripeReturn() {
   const params = new URLSearchParams(window.location.search);
+  if (params.get('verified')) toast('✅ Email confirmed — monitoring emails are now enabled for your account.');
+  if (params.get('reset_token')) {
+    resetToken = params.get('reset_token');
+    openAuth('reset');
+  }
   if (params.get('cancelled')) toast('Checkout cancelled — you are still on the free plan.', 'err');
   else if (params.get('upgraded')) {
     // Webhooks flip the account to Pro; refresh config to pick it up.
@@ -254,36 +259,93 @@ async function handleStripeReturn() {
 }
 
 // ---------- auth ----------
+// Modes: signup | login | forgot (email only) | reset (password only)
 let authMode = 'signup';
+let resetToken = null;
+const AUTH_COPY = {
+  signup: { title: 'Create your account', submit: 'Sign up', toggle: 'Already have an account? Log in' },
+  login: { title: 'Log in', submit: 'Log in', toggle: 'New here? Create an account' },
+  forgot: { title: 'Reset your password', submit: 'Email me a reset link', toggle: 'Back to log in' },
+  reset: { title: 'Choose a new password', submit: 'Set new password', toggle: 'Back to log in' }
+};
 function openAuth(mode) {
   authMode = mode;
-  $('#authTitle').textContent = mode === 'signup' ? 'Create your account' : 'Log in';
-  $('#authSubmit').textContent = mode === 'signup' ? 'Sign up' : 'Log in';
-  $('#authToggle').textContent = mode === 'signup' ? 'Already have an account? Log in' : "New here? Create an account";
+  const c = AUTH_COPY[mode];
+  $('#authTitle').textContent = c.title;
+  $('#authSubmit').textContent = c.submit;
+  $('#authToggle').textContent = c.toggle;
+  $('#authEmail').closest('label').hidden = mode === 'reset';
+  $('#authEmail').required = mode !== 'reset';
+  $('#authPassword').closest('label').hidden = mode === 'forgot';
+  $('#authPassword').required = mode !== 'forgot';
+  $('#authForgot').hidden = mode !== 'login';
   $('#authModal').hidden = false;
 }
 $('#authClose').addEventListener('click', () => ($('#authModal').hidden = true));
 $('#authModal').addEventListener('click', (e) => { if (e.target === $('#authModal')) $('#authModal').hidden = true; });
-$('#authToggle').addEventListener('click', () => openAuth(authMode === 'signup' ? 'login' : 'signup'));
+$('#authToggle').addEventListener('click', () => openAuth(authMode === 'signup' ? 'login' : authMode === 'login' ? 'signup' : 'login'));
+$('#authForgot').addEventListener('click', () => openAuth('forgot'));
 $('#authForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
+    if (authMode === 'forgot') {
+      const out = await api('/api/auth/forgot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: $('#authEmail').value })
+      });
+      $('#authModal').hidden = true;
+      toast(out.message, 'ok', 8000);
+      return;
+    }
+    const body = authMode === 'reset'
+      ? { token: resetToken, password: $('#authPassword').value }
+      : { email: $('#authEmail').value, password: $('#authPassword').value };
     const out = await api(`/api/auth/${authMode}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: $('#authEmail').value, password: $('#authPassword').value })
+      body: JSON.stringify(body)
     });
     $('#authModal').hidden = true;
     config.loggedIn = true;
     config.email = out.user.email;
     config.pro = out.user.pro;
+    config.verified = out.user.verified;
     renderPills();
-    toast(authMode === 'signup' ? 'Account created — your results now save automatically.' : `Welcome back, ${out.user.email}`);
+    renderVerifyBanner();
+    toast(
+      authMode === 'signup' ? 'Account created — check your inbox to confirm your email.'
+      : authMode === 'reset' ? 'Password updated — you are logged in.'
+      : `Welcome back, ${out.user.email}`
+    );
     loadAnalysis();
   } catch (err) {
     toast(err.message, 'err');
   }
 });
+
+function renderVerifyBanner() {
+  let el = $('#verifyBanner');
+  if (config.loggedIn && config.verified === false) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'verifyBanner';
+      el.className = 'rescan-banner';
+      document.querySelector('main').prepend(el);
+    }
+    el.hidden = false;
+    el.innerHTML = `📧 Please confirm your email address — monitoring emails only go to verified inboxes.
+      <button class="btn" id="resendVerify" style="padding:6px 14px;font-size:13px">Resend email</button>`;
+    el.querySelector('#resendVerify').addEventListener('click', async () => {
+      try {
+        await api('/api/auth/resend-verification', { method: 'POST' });
+        toast('Verification email sent — check your inbox.');
+      } catch (err) {
+        toast(err.message, 'err', 8000);
+      }
+    });
+  } else if (el) el.hidden = true;
+}
 $('#accountBtn').addEventListener('click', async () => {
   if (!config.loggedIn) return openAuth('signup');
   if (confirm(`Logged in as ${config.email}. Log out?`)) {
@@ -313,6 +375,7 @@ function renderPills() {
     $('#bankHint').textContent = 'Set BASIQ_API_KEY to enable (free sandbox key from basiq.io works).';
   }
   renderPills();
+  renderVerifyBanner();
   await handleStripeReturn();
   if (sessionStorage.getItem('demo')) {
     sessionStorage.removeItem('demo');

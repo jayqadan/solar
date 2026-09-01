@@ -12,6 +12,9 @@ import { createSessionCookie, clearSessionCookie, readSession, verifyToken } fro
 import { diffAnalyses, runMonitoringTick, CYCLE_DAYS } from './lib/monitor.js';
 import { emailBackend } from './lib/email.js';
 import {
+  sendVerificationEmail, sendResetEmail, checkVerifyToken, checkResetToken, rateLimited
+} from './lib/accountEmails.js';
+import {
   stripeEnabled, refuseLiveKey, ensureCustomer,
   createSubscriptionCheckout, createPortalSession, verifyWebhookSignature
 } from './lib/stripe.js';
@@ -107,14 +110,63 @@ function buildAnalysis(ctx) {
 }
 
 // ---- Auth ----
+function baseUrlOf(req) {
+  return process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+}
+
 app.post('/api/auth/signup', (req, res) => {
   try {
     const user = users.createUser({ email: req.body?.email, password: req.body?.password });
     res.setHeader('Set-Cookie', createSessionCookie(user.id));
+    // Fire-and-forget: a failed email must not block signup.
+    sendVerificationEmail(user, baseUrlOf(req)).catch((err) =>
+      console.error('[email] verification send failed:', err.message)
+    );
     res.json({ user: users.publicUser(user) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+app.get('/api/auth/verify', (req, res) => {
+  const user = checkVerifyToken(req.query.token);
+  if (!user) return res.status(400).send('This verification link is invalid or has expired. Request a new one from the app.');
+  users.updateUser(user.id, { emailVerified: true });
+  res.redirect('/app?verified=1');
+});
+
+app.post('/api/auth/resend-verification', (req, res) => {
+  const ctx = getContext(req, res);
+  if (!ctx.user) return res.status(401).json({ error: 'Log in first' });
+  if (users.isVerified(ctx.user)) return res.json({ ok: true, alreadyVerified: true });
+  if (rateLimited(`verify:${ctx.user.id}`)) return res.status(429).json({ error: 'A verification email was sent recently — check your inbox (and spam), or try again in a few minutes.' });
+  sendVerificationEmail(ctx.user, baseUrlOf(req)).catch((err) =>
+    console.error('[email] verification send failed:', err.message)
+  );
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/forgot', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  // Always the same answer: no account enumeration.
+  const reply = { ok: true, message: 'If an account exists for that email, a reset link is on its way.' };
+  const user = email && users.findByEmail(email);
+  if (user && !rateLimited(`reset:${user.id}`)) {
+    sendResetEmail(user, baseUrlOf(req)).catch((err) =>
+      console.error('[email] reset send failed:', err.message)
+    );
+  }
+  res.json(reply);
+});
+
+app.post('/api/auth/reset', (req, res) => {
+  const user = checkResetToken(req.body?.token);
+  if (!user) return res.status(400).json({ error: 'This reset link is invalid, expired, or already used. Request a new one.' });
+  const password = String(req.body?.password || '');
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  users.updateUser(user.id, { passwordHash: users.hashPassword(password), emailVerified: true });
+  res.setHeader('Set-Cookie', createSessionCookie(user.id));
+  res.json({ user: users.publicUser(users.findById(user.id)) });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -145,6 +197,7 @@ app.get('/api/config', (req, res) => {
     pro: isPro(ctx),
     loggedIn: Boolean(ctx.user),
     email: ctx.user?.email || null,
+    verified: ctx.user ? users.isVerified(ctx.user) : null,
     freeTierLimit: FREE_TIER_LIMIT
   });
 });

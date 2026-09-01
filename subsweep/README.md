@@ -64,9 +64,20 @@ configures the sender); without it, messages land in `data/outbox.json` and
 the server log, so the whole cycle is testable offline.
 `DISABLE_MONITORING_TICK=1` turns the scheduler off (useful in tests).
 
-Remaining for production: a real database, rate limiting, email verification
-+ password reset, HTTPS/`Secure` cookies behind a proxy, and GST via Stripe
-Tax once revenue approaches the A$75k registration threshold.
+**Email verification**: signup sends a 24h signed verification link
+(`/api/auth/verify`); a banner with resend (rate-limited) shows until
+confirmed, and monitoring emails only go to verified addresses. Accounts
+created before the feature are grandfathered as verified.
+
+**Password reset**: `/api/auth/forgot` always answers identically (no
+account enumeration) and emails a 1-hour, single-use reset link — tokens
+bind to a fingerprint of the current password hash, so using the link or
+changing the password invalidates outstanding links. Reset logs the user
+in and marks the email verified (they proved inbox access).
+
+Remaining for production: a real database, broader rate limiting,
+HTTPS/`Secure` cookies behind a proxy, and GST via Stripe Tax once revenue
+approaches the A$75k registration threshold.
 
 ## Run
 

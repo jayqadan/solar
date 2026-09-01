@@ -114,6 +114,7 @@ export async function runMonitoringTick({ now = Date.now(), baseUrl = process.en
   for (const user of users.findAll()) {
     const m = user.monitoring;
     if (!m?.enabled) continue;
+    if (!users.isVerified(user)) continue; // never email unverified addresses
     if (daysSince(m.lastScanAt || user.savedAnalysis?.savedAt, now) < CYCLE_DAYS) continue;
     if (daysSince(m.lastReminderAt, now) < CYCLE_DAYS) continue;
 

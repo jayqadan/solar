@@ -71,6 +71,7 @@ export function createUser({ email, password }) {
     email: norm,
     passwordHash: hashPassword(password),
     pro: false,
+    emailVerified: false,
     stripeCustomerId: null,
     savedAnalysis: null,
     basiqUserId: null,
@@ -95,12 +96,18 @@ export function findAll() {
   return Object.values(load().users);
 }
 
+// Accounts created before verification existed are grandfathered in.
+export function isVerified(user) {
+  return user.emailVerified !== false;
+}
+
 export function publicUser(user) {
   if (!user) return null;
   return {
     id: user.id,
     email: user.email,
     pro: user.pro,
+    verified: isVerified(user),
     hasSavedAnalysis: Boolean(user.savedAnalysis),
     monitoring: user.monitoring || { enabled: false, lastScanAt: null, lastReminderAt: null }
   };
