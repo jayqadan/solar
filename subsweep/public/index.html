@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SubSweep — find your money leaks</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧹</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧹</span>
+      <div>
+        <h1>SubSweep</h1>
+        <p class="tagline">Find the subscriptions you forgot you're paying for</p>
+      </div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="bankPill">…</span>
+      <span class="pill" id="planPill">…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Empty state / onboarding -->
+    <section id="onboarding">
+      <div class="hero">
+        <h2>How much are you leaking every month?</h2>
+        <p>SubSweep reads your bank statement, finds every recurring charge, and shows what
+           they cost you per year — with price-hike alerts, refund windows, and one-click cancel links.</p>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <h3>📄 Upload a statement</h3>
+          <p>Export a CSV from your bank's website (any Australian bank format works).
+             Processed in memory only — never stored.</p>
+          <label class="btn primary file-btn">Choose CSV file
+            <input type="file" id="fileInput" accept=".csv,text/csv" hidden />
+          </label>
+        </div>
+        <div class="card">
+          <h3>🏦 Connect your bank</h3>
+          <p>Live open-banking connection via Basiq's official CDR consent flow.</p>
+          <button class="btn" id="bankConnectBtn">Connect bank</button>
+          <p class="fine" id="bankHint"></p>
+        </div>
+        <div class="card">
+          <h3>✨ Just looking?</h3>
+          <p>Load a realistic sample statement and see what SubSweep finds.</p>
+          <button class="btn" id="sampleBtn">Try with sample data</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results" hidden>
+      <div class="summary" id="summary"></div>
+      <div id="subList"></div>
+      <div class="upsell" id="upsell" hidden></div>
+      <p class="fine center">
+        <button class="linklike" id="resetBtn">Start over with different data</button>
+      </p>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <footer>
+    <p><strong>Privacy:</strong> statements are analysed in memory for your session only and never
+       written to disk or shared. Bank connections use the official Consumer Data Right consent flow.
+       SubSweep helps you review your own spending — it does not provide financial product advice.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
