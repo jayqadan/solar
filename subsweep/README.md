@@ -39,8 +39,12 @@ list and refund emails.
 Email + password auth (scrypt hashes, HMAC-signed session cookies, 30-day
 expiry). Anonymous visitors can do everything except keep results; account
 holders get their **derived** analysis saved and restored — raw transactions
-are never persisted for anyone. User records live in a file-backed store
-(`lib/users.js`) whose interface is designed to swap for Postgres.
+are never persisted for anyone. User records live in **SQLite**
+(better-sqlite3, WAL mode, `data/subsweep.db` — set `DATA_DIR` to point it
+at a persistent volume in production). On first boot the server imports any
+legacy `data/users.json` from the old file store and renames it
+`.imported`. The store interface (`lib/users.js`) is a thin mapping layer,
+so a later Postgres move only touches that file.
 
 The site splits into a marketing landing page at `/` and the app at `/app`.
 
@@ -75,9 +79,9 @@ bind to a fingerprint of the current password hash, so using the link or
 changing the password invalidates outstanding links. Reset logs the user
 in and marks the email verified (they proved inbox access).
 
-Remaining for production: a real database, broader rate limiting,
-HTTPS/`Secure` cookies behind a proxy, and GST via Stripe Tax once revenue
-approaches the A$75k registration threshold.
+Remaining for production: broader rate limiting, HTTPS/`Secure` cookies
+behind a proxy, and GST via Stripe Tax once revenue approaches the A$75k
+registration threshold.
 
 ## Run
 
