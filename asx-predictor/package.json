@@ -1,0 +1,22 @@
+{
+  "name": "asx-gain-predictor",
+  "version": "1.0.0",
+  "description": "ASX stock signal dashboard with indicative potential-gain predictions and a demo brokerage checkout (Stripe test mode)",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "asx",
+    "stocks",
+    "predictions",
+    "stripe",
+    "demo"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
