@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SubSweep — find the subscriptions you forgot you're paying for</title>
+  <meta name="description" content="Upload a bank statement or connect your bank. SubSweep finds every recurring charge, flags price hikes and refund windows, and gives you cancel links and refund emails." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧹</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .land-hero { text-align: center; padding: 56px 18px 40px; }
+    .land-hero h1 { font-size: 38px; margin: 0 0 14px; line-height: 1.15; }
+    .land-hero .sub { color: var(--muted); font-size: 18px; max-width: 620px; margin: 0 auto 26px; line-height: 1.6; }
+    .land-hero .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .land-hero .btn { padding: 14px 26px; font-size: 16px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 30px 0; }
+    .step { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+    .step .n { font-size: 13px; font-weight: 700; color: var(--accent); }
+    .step h3 { margin: 6px 0 8px; font-size: 17px; }
+    .step p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .section-title { text-align: center; font-size: 24px; margin: 46px 0 6px; }
+    .section-sub { text-align: center; color: var(--muted); margin: 0 0 22px; }
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; max-width: 640px; margin: 0 auto 20px; }
+    .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; }
+    .plan.featured { border: 2px solid var(--accent); }
+    .plan .price { font-size: 32px; font-weight: 700; margin: 8px 0 2px; }
+    .plan .per { color: var(--muted); font-size: 13px; }
+    .plan ul { text-align: left; padding-left: 20px; color: var(--muted); font-size: 14px; line-height: 1.9; }
+    .faq { max-width: 640px; margin: 0 auto 30px; }
+    .faq details { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; }
+    .faq summary { font-weight: 600; cursor: pointer; }
+    .faq p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 10px 0 0; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧹</span>
+      <div>
+        <h1>SubSweep</h1>
+        <p class="tagline">Subscription leak finder</p>
+      </div>
+    </div>
+    <div class="pills">
+      <a class="pill btnpill" href="/app" style="text-decoration:none">Open the app →</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="land-hero">
+      <h1>Find the subscriptions you<br />forgot you're paying for</h1>
+      <p class="sub">
+        Upload a bank statement — or connect your bank — and SubSweep finds every recurring charge:
+        what each one costs you per year, which ones just raised their price, and which recent
+        charges may still be refundable. With cancel links and ready-to-send refund emails.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="/app">Scan my statement — free</a>
+        <a class="btn" href="/app" onclick="sessionStorage.setItem('demo','1')">See a live demo</a>
+      </div>
+      <p class="fine" style="margin-top:14px">Free scan, no card required. Statements are processed in memory and never stored.</p>
+    </section>
+
+    <div class="steps">
+      <div class="step"><div class="n">STEP 1</div><h3>Add your transactions</h3>
+        <p>Export a CSV from your bank's website (every Australian bank has this), or connect through
+           the official open-banking consent flow.</p></div>
+      <div class="step"><div class="n">STEP 2</div><h3>See your leaks</h3>
+        <p>Our detector separates real subscriptions from everyday spending and totals what
+           they cost you per month and per year.</p></div>
+      <div class="step"><div class="n">STEP 3</div><h3>Cancel &amp; claim</h3>
+        <p>One-click cancel guides for 30+ services, price-hike alerts, and refund-request
+           emails for charges inside the refund window.</p></div>
+    </div>
+
+    <h2 class="section-title">Simple pricing</h2>
+    <p class="section-sub">The free scan shows your three biggest leaks. Pro shows everything.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>Free</h3>
+        <div class="price">$0</div>
+        <div class="per">forever</div>
+        <ul>
+          <li>Statement scan</li>
+          <li>Top 3 leaks with totals</li>
+          <li>Cancel guides</li>
+        </ul>
+        <a class="btn" href="/app">Start free</a>
+      </div>
+      <div class="plan featured">
+        <h3>Pro</h3>
+        <div class="price">$9.99</div>
+        <div class="per">per month, cancel anytime</div>
+        <ul>
+          <li>Every subscription found</li>
+          <li>Price-hike alerts</li>
+          <li>Refund-window flags + refund emails</li>
+          <li>Saved results in your account</li>
+        </ul>
+        <a class="btn primary" href="/app">Go Pro</a>
+      </div>
+    </div>
+
+    <h2 class="section-title">Questions</h2>
+    <div class="faq">
+      <details><summary>Is my banking data safe?</summary>
+        <p>Uploaded statements are analysed in memory for your session and never written to disk or
+           shared. If you create an account, only the derived subscription list is saved — never your
+           raw transactions. Bank connections use the regulated Consumer Data Right consent flow, so
+           we never see your bank login.</p></details>
+      <details><summary>Which banks work?</summary>
+        <p>Statement upload works with CSV exports from all major Australian banks (CBA, Westpac,
+           NAB, ANZ, ING, Up and more). Direct bank connection covers CDR-enabled institutions.</p></details>
+      <details><summary>Do you cancel subscriptions for me?</summary>
+        <p>We give you the fastest path — direct cancel links for 30+ services and a pre-written
+           refund email for recent charges — but the final click is always yours. That keeps you in
+           control of your accounts.</p></details>
+      <details><summary>Is this financial advice?</summary>
+        <p>No. SubSweep is a tool for reviewing your own spending on everyday services. It doesn't
+           recommend financial products or provide financial advice.</p></details>
+    </div>
+  </main>
+
+  <footer>
+    <p><strong>SubSweep</strong> · Privacy-first subscription auditing. Statements processed in memory only.
+       Not financial advice. </p>
+  </footer>
+</body>
+</html>
