@@ -16,7 +16,10 @@ generated refund-request email, and per-merchant cancel links.
    the Connect Bank button lights up, using Basiq's hosted consent UI. A free
    sandbox key from [basiq.io](https://basiq.io) connects simulated test banks
    immediately; production access requires a CDR representative agreement
-   with Basiq (or Frollo/Adatree).
+   with Basiq (or Frollo/Adatree). The app shows which bank is connected
+   and offers **Re-sync** and **Disconnect / switch bank** (deletes the Basiq
+   connections via `POST /api/bank/disconnect`), so changing banks is an
+   explicit in-app step rather than something done inside Basiq's UI.
 3. **Sample data** — one click, seeded with a price hike, a refund-window
    charge, and a lapsed subscription so the demo shows every feature.
 
