@@ -1,4 +1,4 @@
-# SubSweep — builds and runs the app in ./subsweep from the repo root, so
+# SubSweep — builds and runs the app from the subsweep directory, so
 # Railway (or any Docker host) needs no root-directory or branch settings.
 FROM node:22-slim
 
@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY subsweep/package.json subsweep/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY subsweep/ ./
+COPY . ./
 
 ENV NODE_ENV=production
 ENV DATA_DIR=/data

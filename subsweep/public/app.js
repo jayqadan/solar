@@ -42,29 +42,192 @@ $('#sampleBtn').addEventListener('click', async () => {
   loadAnalysis();
 });
 
-$('#bankConnectBtn').addEventListener('click', async () => {
+// ---------- bank connect ----------
+// Basiq consent happens in a separate tab, so we poll /api/bank/sync until a
+// connection with transactions shows up (or the user gives up), and also retry
+// the moment this tab regains focus.
+const bankButtons = () =>
+  ['#bankConnectBtn', '#resultsBankBtn', '#bankResyncBtn', '#bankDisconnectBtn', '#resultsDisconnectBtn']
+    .map((sel) => $(sel)).filter(Boolean);
+let bankPoll = null;
+let bankState = { configured: false, connected: false, connections: [] };
+
+function bankNames() {
+  return bankState.connections.map((c) => c.institution).join(', ') || 'your bank';
+}
+
+function renderBankState() {
+  const connected = bankState.configured && bankState.connected;
+  $('#bankNotConnected').hidden = connected;
+  $('#bankConnected').hidden = !connected;
+  $('#bankName').textContent = bankNames();
+  $('#resultsBankBtn').textContent = connected ? `🔄 Re-sync ${bankNames()}` : '🏦 Connect bank';
+  $('#resultsDisconnectBtn').hidden = !connected;
+}
+
+async function refreshBankStatus() {
+  if (config.bankConnect !== 'available') return;
+  try {
+    bankState = await api('/api/bank/status');
+  } catch {
+    bankState = { configured: true, connected: false, connections: [] };
+  }
+  renderBankState();
+}
+
+// Shows the waiting message in both the onboarding card and the results
+// toolbar, with a Cancel link so the user is never stuck in the poll.
+function setBankStatus(msg, { cancellable = false } = {}) {
+  const targets = [$('#bankStatus'), config.bankConnect === 'available' ? $('#bankHint') : null].filter(Boolean);
+  for (const el of targets) {
+    el.hidden = !msg;
+    el.textContent = msg || '';
+    if (msg && cancellable) {
+      el.append(' ');
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'linklike';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        stopBankPoll();
+        toast('Stopped waiting. Click Connect bank whenever you are ready.', 'ok', 6000);
+      });
+      el.append(cancel);
+    }
+  }
+}
+
+function stopBankPoll() {
+  if (!bankPoll) return;
+  clearInterval(bankPoll.timer);
+  document.removeEventListener('visibilitychange', bankPoll.onFocus);
+  window.removeEventListener('focus', bankPoll.onFocus);
+  bankPoll = null;
+  bankButtons().forEach((b) => { b.disabled = false; b.classList.remove('waiting'); });
+  setBankStatus('');
+}
+
+async function trySync() {
+  if (!bankPoll || bankPoll.busy) return false;
+  bankPoll.busy = true;
+  try {
+    const sync = await api('/api/bank/sync', { method: 'POST' });
+    if (sync.ok) {
+      stopBankPoll();
+      await refreshBankStatus();
+      toast(`Connected to ${bankNames()} — synced ${sync.transactionCount} transactions`);
+      await loadAnalysis();
+      return true;
+    }
+    setBankStatus(sync.reason === 'no-transactions-yet'
+      ? 'Bank connected — waiting for transactions to arrive…'
+      : 'Waiting for you to finish the bank consent in the other tab…', { cancellable: true });
+  } catch (err) {
+    // Session lost its Basiq user (e.g. server restart): stop and let the user retry.
+    stopBankPoll();
+    toast(err.message, 'err', 8000);
+  } finally {
+    if (bankPoll) bankPoll.busy = false;
+  }
+  return false;
+}
+
+function startBankPoll() {
+  stopBankPoll();
+  const started = Date.now();
+  const MAX_MS = 15 * 60 * 1000;
+  bankPoll = { busy: false, timer: null, onFocus: null };
+  bankPoll.onFocus = () => { if (!document.hidden) trySync(); };
+  bankPoll.timer = setInterval(async () => {
+    if (Date.now() - started > MAX_MS) {
+      stopBankPoll();
+      toast('Still no bank connection. Click Connect bank again when you have finished the consent.', 'err', 10000);
+      return;
+    }
+    trySync();
+  }, 5000);
+  document.addEventListener('visibilitychange', bankPoll.onFocus);
+  window.addEventListener('focus', bankPoll.onFocus);
+  // Connect bank stays clickable (it re-opens the consent tab); only the
+  // re-sync / disconnect actions pause while we wait.
+  bankButtons().forEach((b) => {
+    b.classList.add('waiting');
+    if (!['bankConnectBtn', 'resultsBankBtn'].includes(b.id)) b.disabled = true;
+  });
+  setBankStatus('Waiting for you to finish the bank consent in the other tab…', { cancellable: true });
+}
+
+async function connectBank() {
+  // Already connected? The button reads "Re-sync" — just pull fresh data.
+  if (bankState.connected && !bankPoll) return resyncBank();
+  // Clicking again while waiting starts a fresh consent (new token, new tab).
+  stopBankPoll();
   try {
     const out = await api('/api/bank/connect', { method: 'POST' });
-    window.open(out.consentUrl, '_blank');
-    toast('Complete the bank consent in the new tab, then click Connect bank again to sync.');
-    // try syncing after consent
-    setTimeout(async () => {
-      try {
-        const sync = await api('/api/bank/sync', { method: 'POST' });
-        if (sync.ok) {
-          toast(`Synced ${sync.transactionCount} transactions from your bank`);
-          loadAnalysis();
-        }
-      } catch { /* not connected yet */ }
-    }, 4000);
+    const tab = window.open(out.consentUrl, '_blank');
+    if (!tab) {
+      toast('Your browser blocked the consent window — allow pop-ups for this site and try again.', 'err', 10000);
+      return;
+    }
+    toast('Complete the bank consent in the new tab — this page will update automatically.', 'ok', 8000);
+    startBankPoll();
   } catch (err) {
     toast(err.message, 'err', 8000);
   }
-});
+}
+
+async function resyncBank() {
+  const btns = bankButtons();
+  btns.forEach((b) => { b.disabled = true; });
+  try {
+    const sync = await api('/api/bank/sync', { method: 'POST' });
+    if (sync.ok) {
+      toast(`Re-synced ${sync.transactionCount} transactions from ${bankNames()}`);
+      await loadAnalysis();
+    } else if (sync.reason === 'no-connections') {
+      toast('No bank connection found — click Connect bank to start a new consent.', 'err', 8000);
+      await refreshBankStatus();
+    } else {
+      toast('Bank connected but no transactions available yet — try again in a minute.', 'err', 8000);
+    }
+  } catch (err) {
+    toast(err.message, 'err', 8000);
+  } finally {
+    btns.forEach((b) => { b.disabled = false; });
+  }
+}
+
+async function disconnectBank() {
+  const ok = confirm(`Disconnect ${bankNames()}?\n\nThis removes the bank connection from SubSweep and Basiq. ` +
+    'Your saved results stay in your account. You can then connect the same or a different bank.');
+  if (!ok) return;
+  const btns = bankButtons();
+  btns.forEach((b) => { b.disabled = true; });
+  try {
+    stopBankPoll();
+    await api('/api/bank/disconnect', { method: 'POST' });
+    await refreshBankStatus();
+    toast('Bank disconnected. Click Connect bank to connect a different bank.', 'ok', 8000);
+    $('#results').hidden = true;
+    $('#onboarding').hidden = false;
+    window.scrollTo({ top: 0 });
+  } catch (err) {
+    toast(err.message, 'err', 8000);
+  } finally {
+    btns.forEach((b) => { b.disabled = false; });
+  }
+}
+
+$('#bankConnectBtn').addEventListener('click', connectBank);
+$('#resultsBankBtn').addEventListener('click', connectBank);
+$('#bankResyncBtn').addEventListener('click', resyncBank);
+$('#bankDisconnectBtn').addEventListener('click', disconnectBank);
+$('#resultsDisconnectBtn').addEventListener('click', disconnectBank);
 
 $('#resetBtn').addEventListener('click', () => {
   $('#results').hidden = true;
   $('#onboarding').hidden = false;
+  window.scrollTo({ top: 0 });
 });
 
 // ---------- analysis ----------
@@ -355,12 +518,18 @@ $('#accountBtn').addEventListener('click', async () => {
 });
 
 function renderPills() {
-  $('#planPill').textContent = config.pro ? '⭐ Pro' : `Free plan (top ${config.freeTierLimit} shown)`;
+  const ends = config.pro && config.proEndsAt
+    ? ` · ends ${new Date(config.proEndsAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`
+    : '';
+  $('#planPill').textContent = config.pro ? `⭐ Pro${ends}` : `Free plan (top ${config.freeTierLimit} shown)`;
+  $('#planPill').title = config.pro && config.proEndsAt
+    ? 'Subscription cancelled — Pro stays active until the end of the paid period. Click to manage billing.'
+    : '';
   $('#planPill').classList.toggle('good', Boolean(config.pro));
   $('#accountBtn').textContent = config.loggedIn ? `👤 ${config.email}` : '👤 Sign up / Log in';
   if (config.pro && config.billing === 'stripe-test' && config.loggedIn) {
     $('#planPill').style.cursor = 'pointer';
-    $('#planPill').title = 'Manage billing';
+    if (!config.proEndsAt) $('#planPill').title = 'Manage billing';
     $('#planPill').onclick = openPortal;
   }
 }
@@ -371,11 +540,12 @@ function renderPills() {
   $('#bankPill').textContent = config.bankConnect === 'available' ? '🏦 Bank connect ready' : '🏦 Bank connect: needs BASIQ_API_KEY';
   if (config.bankConnect === 'available') $('#bankPill').classList.add('good');
   else {
-    $('#bankConnectBtn').disabled = true;
+    bankButtons().forEach((b) => { b.disabled = true; });
     $('#bankHint').textContent = 'Set BASIQ_API_KEY to enable (free sandbox key from basiq.io works).';
   }
   renderPills();
   renderVerifyBanner();
+  refreshBankStatus();
   await handleStripeReturn();
   if (sessionStorage.getItem('demo')) {
     sessionStorage.removeItem('demo');

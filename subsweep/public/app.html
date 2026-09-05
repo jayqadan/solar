@@ -4,18 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SubSweep — find your money leaks</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧹</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="/brand/icon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png" />
+  <link rel="apple-touch-icon" href="/brand/icon-180.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="logo">🧹</span>
+    <a class="brand" href="/" title="SubSweep home">
+      <img class="logo" src="/brand/icon.svg" alt="" width="40" height="40" />
       <div>
         <h1>SubSweep</h1>
         <p class="tagline">Find the subscriptions you forgot you're paying for</p>
       </div>
-    </div>
+    </a>
     <div class="pills">
       <span class="pill" id="bankPill">…</span>
       <span class="pill" id="planPill">…</span>
@@ -43,7 +45,18 @@
         <div class="card">
           <h3>🏦 Connect your bank</h3>
           <p>Live open-banking connection via Basiq's official CDR consent flow.</p>
-          <button class="btn" id="bankConnectBtn">Connect bank</button>
+          <div id="bankNotConnected">
+            <button class="btn" id="bankConnectBtn">Connect bank</button>
+          </div>
+          <div id="bankConnected" hidden>
+            <p class="connected-line">✅ Connected to <strong id="bankName"></strong></p>
+            <div class="btn-row">
+              <button class="btn primary" id="bankResyncBtn">Re-sync transactions</button>
+              <button class="btn" id="bankDisconnectBtn">Disconnect / switch bank</button>
+            </div>
+            <p class="fine">To use a different bank, disconnect first — then Connect bank will
+               open a fresh consent for the new bank.</p>
+          </div>
           <p class="fine" id="bankHint"></p>
         </div>
         <div class="card">
@@ -56,15 +69,18 @@
 
     <!-- Results -->
     <section id="results" hidden>
+      <div class="results-toolbar">
+        <button class="btn" id="resetBtn">↩ Start over with different data</button>
+        <button class="btn" id="resultsBankBtn">🏦 Connect bank</button>
+        <button class="btn" id="resultsDisconnectBtn" hidden>Disconnect bank</button>
+        <span class="fine" id="bankStatus" hidden></span>
+      </div>
       <div class="rescan-banner" id="rescanBanner" hidden></div>
       <div class="summary" id="summary"></div>
       <div class="changes" id="changesPanel" hidden></div>
       <div class="monitor-bar" id="monitorBar" hidden></div>
       <div id="subList"></div>
       <div class="upsell" id="upsell" hidden></div>
-      <p class="fine center">
-        <button class="linklike" id="resetBtn">Start over with different data</button>
-      </p>
     </section>
   </main>
 
@@ -92,6 +108,7 @@
     <p><strong>Privacy:</strong> statements are analysed in memory for your session only and never
        written to disk or shared. Bank connections use the official Consumer Data Right consent flow.
        SubSweep helps you review your own spending — it does not provide financial product advice.</p>
+    <p class="fine center"><a href="/privacy">Privacy policy</a> · <a href="/cdr-policy">CDR policy</a> · <a href="/terms">Terms</a></p>
   </footer>
 
   <script src="app.js"></script>

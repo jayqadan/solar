@@ -1,3 +1,4 @@
+import fs from 'fs';
 import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
@@ -48,14 +49,24 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), (req, res) => {
   switch (event.type) {
     case 'checkout.session.completed':
     case 'invoice.paid':
-      if (user) users.updateUser(user.id, { pro: true, stripeCustomerId: customerId || user.stripeCustomerId });
+      if (user) users.updateUser(user.id, { pro: true, proEndsAt: null, stripeCustomerId: customerId || user.stripeCustomerId });
       break;
     case 'customer.subscription.deleted':
-      if (user) users.updateUser(user.id, { pro: false });
+      if (user) users.updateUser(user.id, { pro: false, proEndsAt: null });
       break;
-    case 'customer.subscription.updated':
-      if (user) users.updateUser(user.id, { pro: ['active', 'trialing', 'past_due'].includes(obj.status) });
+    case 'customer.subscription.updated': {
+      // Portal cancellations are "cancel at period end": the customer keeps
+      // Pro until then, so we record the end date instead of dropping them.
+      // Newer Stripe API versions express a scheduled cancellation as a
+      // `cancel_at` timestamp (cancel_at_period_end stays false) and keep the
+      // period end on the subscription item, so check every shape.
+      const active = ['active', 'trialing', 'past_due'].includes(obj.status);
+      const periodEnd = obj.current_period_end || obj.items?.data?.[0]?.current_period_end || null;
+      const cancelTs = obj.cancel_at || (obj.cancel_at_period_end ? periodEnd : null);
+      const endsAt = active && cancelTs ? new Date(cancelTs * 1000).toISOString() : null;
+      if (user) users.updateUser(user.id, { pro: active, proEndsAt: endsAt });
       break;
+    }
     default:
       break; // acknowledge everything else
   }
@@ -67,6 +78,23 @@ app.use(express.json());
 // ---- Static pages: marketing at /, app at /app ----
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+
+// Legal pages: static HTML with the operating entity filled in from env, so
+// the business name/ABN live in Railway variables rather than in the copy.
+const LEGAL = {
+  ENTITY: process.env.LEGAL_ENTITY || 'SubSweep',
+  ABN_CLAUSE: process.env.LEGAL_ABN ? ` (ABN ${process.env.LEGAL_ABN})` : '',
+  EMAIL: process.env.CONTACT_EMAIL || (process.env.EMAIL_FROM || '').match(/<([^>]+)>/)?.[1] || process.env.EMAIL_FROM || 'hello@subsweep.com.au',
+  EFFECTIVE: process.env.LEGAL_EFFECTIVE || '5 September 2026',
+  YEAR: String(new Date().getFullYear())
+};
+for (const page of ['privacy', 'cdr-policy', 'terms']) {
+  app.get(`/${page}`, (req, res) => {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'legal', `${page}.html`), 'utf8')
+      .replace(/{{(\w+)}}/g, (_, k) => LEGAL[k] ?? '');
+    res.type('html').send(html);
+  });
+}
 
 // ---- Anonymous per-browser working state (transactions stay in memory only,
 // for logged-in and anonymous visitors alike) ----
@@ -196,6 +224,7 @@ app.get('/api/config', (req, res) => {
     bankConnect: basiq.basiqEnabled() ? 'available' : 'not-configured',
     billing: stripeEnabled() ? 'stripe-test' : 'demo',
     pro: isPro(ctx),
+    proEndsAt: ctx.user?.proEndsAt || null,
     loggedIn: Boolean(ctx.user),
     email: ctx.user?.email || null,
     verified: ctx.user ? users.isVerified(ctx.user) : null,
@@ -301,9 +330,43 @@ app.post('/api/bank/connect', async (req, res) => {
   }
 });
 
+function basiqUserFor(ctx) {
+  if (!ctx.ws.basiqUserId && ctx.user?.basiqUserId) ctx.ws.basiqUserId = ctx.user.basiqUserId;
+  return ctx.ws.basiqUserId;
+}
+
+// Which bank(s) this session is connected to — drives the connect / re-sync /
+// disconnect buttons so users always know what state they're in.
+app.get('/api/bank/status', async (req, res) => {
+  const ctx = getContext(req, res);
+  if (!basiq.basiqEnabled()) return res.json({ configured: false, connected: false, connections: [] });
+  const basiqUserId = basiqUserFor(ctx);
+  if (!basiqUserId) return res.json({ configured: true, connected: false, connections: [] });
+  try {
+    const connections = await basiq.getConnectionSummaries(basiqUserId);
+    res.json({ configured: true, connected: connections.length > 0, connections, source: ctx.ws.source });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove the bank connection(s) so the user can connect a different bank.
+app.post('/api/bank/disconnect', async (req, res) => {
+  const ctx = getContext(req, res);
+  const basiqUserId = basiq.basiqEnabled() ? basiqUserFor(ctx) : null;
+  if (!basiqUserId) return res.json({ ok: true, removed: 0 });
+  try {
+    const removed = await basiq.deleteAllConnections(basiqUserId);
+    if (ctx.ws.source === 'bank') { ctx.ws.transactions = null; ctx.ws.source = null; }
+    res.json({ ok: true, removed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/bank/sync', async (req, res) => {
   const ctx = getContext(req, res);
-  if (!basiq.basiqEnabled() || !ctx.ws.basiqUserId) {
+  if (!basiq.basiqEnabled() || !basiqUserFor(ctx)) {
     return res.status(400).json({ error: 'No bank connection in this session' });
   }
   try {
