@@ -117,6 +117,7 @@ npm start        # http://localhost:3100
 | `STRIPE_SECRET_KEY` | `sk_test_...` enables Stripe subscription checkout |
 | `STRIPE_PRICE_ID` | the recurring Price for SubSweep Pro |
 | `BASE_URL` | public URL for Stripe redirects |
+| `LEGAL_ENTITY`, `LEGAL_ABN`, `CONTACT_EMAIL` | fill the operating entity into `/privacy`, `/cdr-policy`, `/terms` |
 
 ## Positioning note
 

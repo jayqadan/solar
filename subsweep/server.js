@@ -1,3 +1,4 @@
+import fs from 'fs';
 import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
@@ -77,6 +78,23 @@ app.use(express.json());
 // ---- Static pages: marketing at /, app at /app ----
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+
+// Legal pages: static HTML with the operating entity filled in from env, so
+// the business name/ABN live in Railway variables rather than in the copy.
+const LEGAL = {
+  ENTITY: process.env.LEGAL_ENTITY || 'SubSweep',
+  ABN_CLAUSE: process.env.LEGAL_ABN ? ` (ABN ${process.env.LEGAL_ABN})` : '',
+  EMAIL: process.env.CONTACT_EMAIL || (process.env.EMAIL_FROM || '').match(/<([^>]+)>/)?.[1] || process.env.EMAIL_FROM || 'hello@subsweep.com.au',
+  EFFECTIVE: process.env.LEGAL_EFFECTIVE || '5 September 2026',
+  YEAR: String(new Date().getFullYear())
+};
+for (const page of ['privacy', 'cdr-policy', 'terms']) {
+  app.get(`/${page}`, (req, res) => {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'legal', `${page}.html`), 'utf8')
+      .replace(/{{(\w+)}}/g, (_, k) => LEGAL[k] ?? '');
+    res.type('html').send(html);
+  });
+}
 
 // ---- Anonymous per-browser working state (transactions stay in memory only,
 // for logged-in and anonymous visitors alike) ----
